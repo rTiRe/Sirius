@@ -54,12 +54,12 @@ void parsePacket(AsyncUDPPacket packet)
           data[i].mode = tmp[i].mode;
           data[i].sendTo = tmp[i].sendTo;
           data[i].message = tmp[i].message;
-          data[tmp->num].RSSI1From = tmp->RSSI1From;
-          data[tmp->num].RSSI1 = tmp->RSSI1;
-          data[tmp->num].RSSI2From = tmp->RSSI2From;
-          data[tmp->num].RSSI2 = tmp->RSSI2;
-          data[tmp->num].RSSI3From = tmp->RSSI3From;
-          data[tmp->num].RSSI3 = tmp->RSSI3;
+          data[i].RSSI1From = tmp[i].RSSI1From;
+          data[i].RSSI1 = tmp[i].RSSI1;
+          data[i].RSSI2From = tmp[i].RSSI2From;
+          data[i].RSSI2 = tmp[i].RSSI2;
+          data[i].RSSI3From = tmp[i].RSSI3From;
+          data[i].RSSI3 = tmp[i].RSSI3;
         }
       }
     }
@@ -140,7 +140,7 @@ void loop()
   
     // Выводим значения элементов в последовательный порт
     for (size_t i = 0; i < NBOARDS; i++) {
-      //if(data[i].mode == "client") {
+      if(data[i].mode == "client") {
         Serial.print("Порядковый номер: ");
         Serial.print(data[i].num);
         Serial.print(", IP адрес платы: ");
@@ -156,7 +156,7 @@ void loop()
         Serial.print(", ");
         Serial.print(data[i].RSSI3);
         Serial.println(";");
-      //}
+      }
       /*if(data[i].mode == "master" && (data[i].message).length() != 0) {
         if(data[i].sendTo == "slave" && data[i].message == "3") {
           data[NUM].message = "3";

@@ -32,7 +32,6 @@ const uint16_t PORT = 49152;
 // Создаём объект UDP соединения
 AsyncUDP udp;
 
-int count = 3;
 float meters = 0;
 
 int rs[3] = {0};
@@ -80,15 +79,7 @@ void setup()
 
   if(WiFi.status() != WL_CONNECTED) {
     // Инициируем WiFi
-    if(count%3 == 0) {
-      WiFi.begin("Anchor0", PASSWORD); 
-    }
-    if(count%3 == 1) {
-      WiFi.begin("SlaveAP_1", PASSWORD); 
-    }
-    if(count%3 == 2) {
-      WiFi.begin("SlaveAP_2", PASSWORD); 
-    }
+    WiFi.begin("Anchor0", PASSWORD); 
     // Ждём подключения WiFi
     Serial.print("Подключаем к WiFi");
     while (WiFi.status() != WL_CONNECTED) {
@@ -135,45 +126,59 @@ void setup()
 
 void loop()
 {
-  count++;
   if(NUM >= 0 && WiFi.status() == WL_CONNECTED) {
-    if(count%3 == 0) {
-      rs[0] = WiFi.RSSI();
+
+    //Serial.println("scan start");
+
+    // WiFi.scanNetworks will return the number of networks found
+    if(WiFi.RSSI()) {
+      data[NUM].RSSI1 = WiFi.RSSI();
+    } else {
+      data[NUM].RSSI1 = 0;
     }
-    if(count%3 == 1) {
-      rs[1] = WiFi.RSSI();
+    
+    int n = WiFi.scanNetworks();
+    //Serial.println("scan done");
+    if (n == 0) {
+      Serial.println("no networks found");
+    } else {
+      //Serial.print(n);
+      //Serial.println(" networks found");
+      for (int i = 0; i < n; ++i) {
+        // Print SSID and RSSI for each network found
+        if(WiFi.SSID(i) == "SlaveAP_1" || WiFi.SSID(i) == "SlaveAP_2") {
+          //Serial.print(i + 1);
+          //Serial.print(": ");
+          //Serial.print(WiFi.SSID(i));
+          //Serial.print(" (");
+          //Serial.print(WiFi.RSSI(i));
+          //Serial.print(")");
+          //Serial.println((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
+
+          if(WiFi.SSID(i) == "SlaveAP_1") {
+            data[NUM].RSSI2 = WiFi.RSSI(i);
+          }
+          if(WiFi.SSID(i) == "SlaveAP_2") {
+            data[NUM].RSSI3 = WiFi.RSSI(i);
+          }
+        }
+      }
     }
-    if(count%3 == 2) {
-      rs[2] = WiFi.RSSI();
-    }
+    Serial.println("");
     
   
     // Отправляем данные этой платы побайтово
-    if(WiFi.SSID() == "Anchor0") {
-      
-      delay(500);
-      
-      data[NUM].RSSI1 = rs[0];
-      data[NUM].RSSI2 = rs[1];
-      data[NUM].RSSI3 = rs[2];
-      Serial.println(data[NUM].RSSI1From);
-      Serial.println(data[NUM].RSSI1);
-      Serial.println(data[NUM].RSSI2From);
-      Serial.println(data[NUM].RSSI2);
-      Serial.println(data[NUM].RSSI3From);
-      Serial.println(data[NUM].RSSI3);
-      
-      Serial.println(rs[0]);
-      Serial.println(rs[1]);
-      Serial.println(rs[2]);
-      
-      delay(500);
-      udp.broadcastTo((uint8_t*)&data[NUM], sizeof(data[0]), PORT);
-      delay(500);
-    }
+    Serial.println(data[NUM].RSSI1From);
+    Serial.println(data[NUM].RSSI1);
+    Serial.println(data[NUM].RSSI2From);
+    Serial.println(data[NUM].RSSI2);
+    Serial.println(data[NUM].RSSI3From);
+    Serial.println(data[NUM].RSSI3);
+    
+    udp.broadcastTo((uint8_t*)&data[NUM], sizeof(data[0]), PORT);
   
     // Выводим значения элементов в последовательный порт
-    for (size_t i = 0; i < NBOARDS; i++) {
+    //for (size_t i = 0; i < NBOARDS; i++) {
       //Serial.print("Порядковый номер: ");
       //Serial.print(data[i].num);
       //Serial.print(", IP адрес платы: ");
@@ -192,11 +197,9 @@ void loop()
         }
         meters = pow(10, float(-43-(data[i].RSSI))/(10*2.4));
         Serial.println(meters);*/
-    }
-    Serial.print("; ");
+    //}
     Serial.println();
     Serial.println("----------------------------");
-    WiFi.disconnect();
   } else {
     Serial.println();
     Serial.println("+-------------------------------------------+");
@@ -207,5 +210,5 @@ void loop()
     Serial.println();
     setup();
   }
-  delay(500);
+  delay(1000);
 }

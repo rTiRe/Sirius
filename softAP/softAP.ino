@@ -132,22 +132,22 @@ void loop()
       Serial.print(", message: ");
       Serial.println(data[i].message);
       if(data[i].mode == "client") {
-        Serial.print("RSS1From: ");
+        Serial.print("RSSI1From: ");
         Serial.print(data[i].RSSI1From);
         Serial.print(", RSSI1: ");
         Serial.println(data[i].RSSI1);
 
-        Serial.print("RSS2From: ");
+        Serial.print("RSSI2From: ");
         Serial.print(data[i].RSSI2From);
         Serial.print(", RSSI2: ");
         Serial.println(data[i].RSSI2);
 
-        Serial.print("RSS3From: ");
+        Serial.print("RSSI3From: ");
         Serial.print(data[i].RSSI3From);
         Serial.print(", RSSI1: ");
         Serial.println(data[i].RSSI3);
       }
-      Serial.print(";\n");
+      Serial.println();
     }
     Serial.println("----------------------------");
   }

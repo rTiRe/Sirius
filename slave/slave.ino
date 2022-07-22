@@ -1,4 +1,3 @@
-  // Подключаем библиотеки
 #include <WiFi.h>
 #include "AsyncUDP.h"
 #include "ESPmDNS.h"
@@ -6,13 +5,15 @@
 #include "Struct.h"
 
 // Определяем количество плат
-#define NBOARDS 4
+#define NBOARDS 256
 
-// Определяем номер этой платы
+/*   ------------------------   */
+     String wMode = "slaveX";
+     String msg;
+/*   ------------------------   */
+
 unsigned int NUM = -1;
-
-// Массив структур для обмена
-multidata data[NBOARDS] {0};
+multidata data[NBOARDS] {0,};
 
 int e = 0;
 float t = 0;
@@ -22,21 +23,13 @@ float t = 0;
 const char* master_host = "esp32master";
 // приставка имени ведомой платы
 const char* slave_host = "esp32slave";
-
-// Определяем название и пароль точки доступа
 const char* SSID = "Anchor0";
 const char* PASSWORD = "Sirius12345";
 
 String SlaveSSID = "";
 const char* SlavePASSWORD = "Sirius12345";
-
-// Определяем порт
 const uint16_t PORT = 49152;
-
-// Создаём объект UDP соединения
 AsyncUDP udp;
-
-// Определяем callback функцию обработки пакета
 void parsePacket(AsyncUDPPacket packet)
 {
   if(NUM >= 0) {
@@ -57,12 +50,15 @@ void parsePacket(AsyncUDPPacket packet)
           data[i].mode = tmp[i].mode;
           data[i].sendTo = tmp[i].sendTo;
           data[i].message = tmp[i].message;
-          data[tmp->num].RSSI1From = tmp->RSSI1From;
-          data[tmp->num].RSSI1 = tmp->RSSI1;
-          data[tmp->num].RSSI2From = tmp->RSSI2From;
-          data[tmp->num].RSSI2 = tmp->RSSI2;
-          data[tmp->num].RSSI3From = tmp->RSSI3From;
-          data[tmp->num].RSSI3 = tmp->RSSI3;
+          data[i].RSSI1From = tmp[i].RSSI1From;
+          data[i].RSSI1 = tmp[i].RSSI1;
+          data[i].RSSI2From = tmp[i].RSSI2From;
+          data[i].RSSI2 = tmp[i].RSSI2;
+          data[i].RSSI3From = tmp[i].RSSI3From;
+          data[i].RSSI3 = tmp[i].RSSI3;
+          data[i].APsX[8] = tmp[i].APsX[8];
+          Serial.println(data[0].APsX[0]);
+          data[i].APsY[8] = tmp[i].APsY[8];
         }
       }
     }
@@ -74,14 +70,11 @@ void parsePacket(AsyncUDPPacket packet)
 
 void setup()
 {
-  // Инициируем последовательный порт
   Serial.begin(115200);
 
   WiFi.mode(WIFI_AP_STA);
-  
   if(WiFi.status() != WL_CONNECTED) {
     WiFi.begin(SSID, "Sirius12345");
-    // Ждём подключения WiFi
     Serial.print("Подключаем к WiFi");
     while (WiFi.status() != WL_CONNECTED && t <= 0.5  ) {
       Serial.print(".");
@@ -124,55 +117,32 @@ void setup()
     if (udp.connect(server, PORT)) {
     
       Serial.println("UDP подключён");
-    
-      // вызываем callback функцию при получении пакета
       udp.onPacket(parsePacket);
     }
   }
   data[NUM].sendTo = "master";
-  data[NUM].message = "1";
+  if(wMode == "slaveX") { msg = "0"; }
+  if(wMode == "slaveY") { msg = "1"; }
+  data[NUM].message = msg;
 }
-
-
-
 
 void loop()
 {
   if(NUM >= 0 && WiFi.status() == WL_CONNECTED) {
-  
     // Отправляем данные этой платы побайтово
     udp.broadcastTo((uint8_t*)&data[NUM], sizeof(data[0]), PORT);
-  
-    // Выводим значения элементов в последовательный порт
     for (size_t i = 0; i < NBOARDS; i++) {
-      //Serial.print("Порядковый номер: ");
-      //Serial.print(data[i].num);
-      //Serial.print(", IP адрес платы: ");
-      //Serial.print(data[i].boardIP);
-      //Serial.print(", режим работы: ");
-      //Serial.print(data[i].mode);
-      //if(data[i].mode == "client") {
-        //Serial.print(", RSSI: ");
-        //Serial.println(data[i].RSSI);
-      //}
-      //Serial.print("; ");
-      //Serial.println();
-      if(data[i].mode == "master" && (data[i].message).length() != 0) {
-        if(data[i].sendTo == "slave" && data[i].message == "3") {
-          data[NUM].message = "3";
-          data[NUM].sendTo = "master";
-        }
-        if(data[NUM].message == "1") {
-          SlaveSSID = "SlaveAP_" + data[i].message;
+      if(data[i].mode == "master" && (data[i].message).length() != 0 && data[i].sendTo == (String(data[NUM].boardIP[0]) + "." + String(data[NUM].boardIP[1]) + "." + String(data[NUM].boardIP[2]) + "." + String(data[NUM].boardIP[3]))) {
+        if(data[NUM].message == msg) {
+          SlaveSSID = "SlaveAP_" + String(data[NUM].num);
           data[NUM].message = "";
           data[NUM].sendTo = "";
           WiFi.softAP(SlaveSSID.c_str(), SlavePASSWORD);
-          WiFi.softAPConfig(IPAddress(192, 168, 4 + (data[i].message).toInt(), 1), IPAddress(192, 168, 4 + (data[i].message).toInt(), 0), IPAddress(255, 255, 255, 0));
+          WiFi.softAPConfig(IPAddress(192, 168, 4 + NUM, 1), IPAddress(192, 168, 4 + NUM, 0), IPAddress(255, 255, 255, 0));
           Serial.println(WiFi.softAPIP());
         }
       }
     }
-    //Serial.println("----------------------------");
   } else {
     Serial.println();
     Serial.println("+-------------------------------------------+");
@@ -183,5 +153,5 @@ void loop()
     Serial.println();
     setup();
   }
- delay(250);
+ delay(1000);
 }

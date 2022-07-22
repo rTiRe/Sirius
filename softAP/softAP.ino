@@ -1,4 +1,6 @@
-// Подключаем библиотеки
+#include <iostream>
+#include <vector>
+
 #include "WiFi.h"
 #include "AsyncUDP.h"
 #include "ESPmDNS.h"
@@ -7,7 +9,7 @@
 #include "Struct.h"
 
 // Определяем количество плат ESP32 в сети
-#define NBOARDS 4
+#define NBOARDS 256
 
 // Определяем номер этой платы
 unsigned int NUM = -1;
@@ -21,20 +23,10 @@ multidata data[NBOARDS] {0};
 // Определяем название и пароль точки доступа
 const char* SSID = "Anchor0";
 const char* PASSWORD = "Sirius12345";
-
-// Определяем порт
 const uint16_t PORT = 49152;
-
-int slaves = 0;
 int c = 0;
-
-// Создаём объект UDP соединения
 AsyncUDP udp;
 
-
-
-
-// Определяем callback функцию обработки пакета
 void parsePacket(AsyncUDPPacket packet)
 {
   if(NUM >= 0) {
@@ -46,24 +38,19 @@ void parsePacket(AsyncUDPPacket packet)
   
     // Если указатель на данные не равен нулю и размер данных больше нуля...
     if (tmp != nullptr && len > 0) {
-  
-      // Записываем порядковый номер платы
       data[tmp->num].num = tmp->num;
-      // Записываем IP адрес
       data[tmp->num].boardIP = tmp->boardIP;
-      
       data[tmp->num].mode = tmp->mode;
-
       data[tmp->num].sendTo = tmp->sendTo;
-
       data[tmp->num].message = tmp->message;
-
       data[tmp->num].RSSI1From = tmp->RSSI1From;
       data[tmp->num].RSSI1 = tmp->RSSI1;
       data[tmp->num].RSSI2From = tmp->RSSI2From;
       data[tmp->num].RSSI2 = tmp->RSSI2;
       data[tmp->num].RSSI3From = tmp->RSSI3From;
       data[tmp->num].RSSI3 = tmp->RSSI3;
+      data[tmp->num].APsX[8] = tmp->APsX[8];
+      data[tmp->num].APsY[8] = tmp->APsY[8];
   
       // Отправляем данные всех плат побайтово
       packet.write((uint8_t*)data, sizeof(data));
@@ -71,32 +58,23 @@ void parsePacket(AsyncUDPPacket packet)
   }
 }
 
-
-
-
-
 void setup()
 {
-  // Инициируем последовательный порт
   Serial.begin(115200);
-
-  // Инициируем WiFi
+  
   WiFi.softAP(SSID, PASSWORD);
   NUM = WiFi.softAPIP()[3] - 1;
   // --->  WiFi.setTxPower(WIFI_POWER_19_5dBm); // устанавливаем TxPower
   // --->  Serial.println(WiFi.getTxPower()); // получаем TxPower
-
+  
   if(NUM >= 0) {
-    // Записываем адрес текущей платы в элемент структуры
+    data[NUM].mode = "master";
     data[NUM].boardIP = WiFi.softAPIP();
   
     if (!MDNS.begin(master_host)) {
       Serial.println(data[NUM].boardIP);
     }
-  
-    // Инициируем сервер
     if (udp.listen(PORT)) {
-      // вызываем callback функцию при получении пакета
       udp.onPacket(parsePacket);
     }
     Serial.println("Сервер запущен.");
@@ -105,18 +83,75 @@ void setup()
 
 void loop()
 {
-  if(NUM >= 0) {
-    data[NUM].mode = "master";
+  int result = mySensor.accelUpdate();
+  if (result == 0)  {
+    aSqrt = mySensor.accelSqrt();
+    aSqrt = median(aSqrt);
+    //Serial.println(aSqrt);
+    sensorVal = digitalRead(12);
 
-    // Выводим значения элементов в последовательный порт
+  gas = analogRead(PIN_MQ2);
+  val = analogRead(analogMQ7);   // Считываем значение с порта A5
+  
+
+  if (val > 350 or gas > 2000 ){
+    digitalWrite(13, HIGH);
+      }
+      
+   else if (val < 350 or gas < 2000){
+        digitalWrite(13, LOW);
+      }
+
+    
+  
+  // выводим значения газов в ppm
+ 
+    updateAccState(aSqrt);
+    counter = 0;
+    if(((accState == 2)||(accState == 3)||(accState == 4)
+    
+        ) 
+        &&(acc_max < aSqrt)){
+        acc_max = aSqrt;
+    }
+  }    
+  else  {
+    Serial.println("Sorry, it is imposible");
+  }
+
+  
+  if(NUM >= 0) {
     for (size_t i = 0; i < sizeof(data)/sizeof(*data); i++) {
-      if(data[i].mode == "slave" && (data[i].sendTo == "master" || data[i].sendTo == String(WiFi.softAPIP())) && data[i].message == "1") {
-        for (size_t j = 0; j < sizeof(data)/sizeof(*data); j++) {
-          if(data[j].mode == "slave") { slaves++; }
+      if(data[i].mode == "slave" && (data[i].sendTo == "master" || data[i].sendTo == String(WiFi.softAPIP())) && (data[i].message == "1" || data[i].message == "0")) {
+        for(int k = 0; k < 8; k++) {
+          if(data[i].message == "0") {
+            if(data[NUM].APsX[k] != data[i].num || (data[NUM].APsX[k] == data[i].num && data[i].message == "0")) {
+              if(data[NUM].APsX[k] == 0 || (data[NUM].APsX[k] == data[i].num && data[i].message == "0")) {
+                data[0].APsX[k] = data[i].num;
+                data[NUM].sendTo = String(data[i].boardIP[0]) + "." + String(data[i].boardIP[1]) + "." + String(data[i].boardIP[2]) + "." + String(data[i].boardIP[3]);
+                data[NUM].message = "2";
+                break;
+              }
+            } else {
+              data[NUM].sendTo = "";
+              data[NUM].message = "";
+              break;
+            }
+          } else {
+            if(data[NUM].APsY[k] != data[i].num || (data[NUM].APsY[k] == data[i].num && data[i].message == "1")) {
+              if(data[NUM].APsY[k] == 0 || (data[NUM].APsY[k] == data[i].num && data[i].message == "1")) {
+                data[0].APsY[k] = data[i].num;
+                data[NUM].sendTo = String(data[i].boardIP[0]) + "." + String(data[i].boardIP[1]) + "." + String(data[i].boardIP[2]) + "." + String(data[i].boardIP[3]);
+                data[NUM].message = "2";
+                break;
+              }
+            } else {
+              data[NUM].sendTo = "";
+              data[NUM].message = "";
+              break;
+            }
+          }
         }
-        data[NUM].sendTo = String(data[i].boardIP[0]) + "." + String(data[i].boardIP[1]) + "." + String(data[i].boardIP[2]) + "." + String(data[i].boardIP[3]);
-        data[NUM].message = String(slaves);
-        slaves = 0;
       } else {
         data[NUM].sendTo = "";
         data[NUM].message = "";
@@ -130,32 +165,23 @@ void loop()
       Serial.print(", sendTo: ");
       Serial.print(data[i].sendTo);
       Serial.print(", message: ");
-      Serial.println(data[i].message);
+      Serial.print(data[i].message);
       if(data[i].mode == "client") {
-        Serial.print("RSSI1From: ");
-        Serial.print(data[i].RSSI1From);
-        Serial.print(", RSSI1: ");
-        Serial.println(data[i].RSSI1);
-
-        Serial.print("RSSI2From: ");
-        Serial.print(data[i].RSSI2From);
-        Serial.print(", RSSI2: ");
-        Serial.println(data[i].RSSI2);
-
-        Serial.print("RSSI3From: ");
-        Serial.print(data[i].RSSI3From);
-        Serial.print(", RSSI1: ");
-        Serial.println(data[i].RSSI3);
+        Serial.print(",   RSSI: ");
+        Serial.print(data[i].RSSI1);
+        Serial.print(", ");
+        Serial.print(data[i].RSSI2);
+        Serial.print(", ");
+        Serial.print(data[i].RSSI3);
       }
-      Serial.println();
+      Serial.print(",   APs: ");
+      Serial.print(data[NUM].APsX[0]);
+      Serial.print(data[NUM].APsY[0]);
+      Serial.println(";");
     }
+    Serial.println();
     Serial.println("----------------------------");
-  }
-  if(c == 15) {
-    c = 0;
-    data[NUM].sendTo = "slave";
-    data[NUM].message = "3";
-    
+    Serial.println();
   }
   delay(1000);
 }
